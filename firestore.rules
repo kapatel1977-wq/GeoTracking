@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Default Deny (Top level)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+             (request.auth.token.email == 'kapatel1977@gmail.com' || 
+              exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. Premises
+    function isValidPremise(data) {
+      return data.keys().hasAll(['name', 'center', 'radius', 'createdBy', 'createdAt']) &&
+             data.keys().size() == 5 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.center is map && data.center.lat is number && data.center.lng is number &&
+             data.radius is number && data.radius > 0 &&
+             data.createdBy == request.auth.uid &&
+             data.createdAt == request.time;
+    }
+
+    match /premises/{premiseId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidId(premiseId) && isValidPremise(incoming());
+      allow update: if isAdmin() && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'center', 'radius']) &&
+                    incoming().name is string && incoming().radius is number;
+      allow delete: if isAdmin();
+    }
+
+    // 2. Volunteers
+    function isValidVolunteer(data) {
+      return data.keys().hasAll(['displayName', 'email', 'role']) &&
+             data.displayName is string && data.email is string &&
+             data.role in ['volunteer', 'admin'];
+    }
+
+    match /volunteers/{uid} {
+      // Explicitly allow GET for the owner or the named admin
+      allow get: if isSignedIn() && (request.auth.uid == uid || request.auth.token.email == 'kapatel1977@gmail.com');
+      // Explicitly allow LIST for admin
+      allow list: if isAdmin();
+      // Creation rule
+      allow create: if isSignedIn() && request.auth.uid == uid && isValidVolunteer(incoming()) && incoming().role == 'volunteer';
+      // Update rules split by role/owner
+      allow update: if isSignedIn() && (request.auth.uid == uid || request.auth.token.email == 'kapatel1977@gmail.com') &&
+                    (
+                      (request.auth.uid == uid && incoming().diff(existing()).affectedKeys().hasOnly(['isInside', 'lastCheckIn', 'lastCheckOut', 'displayName', 'currentPremiseId', 'fcmTokens', 'lastLocation', 'lastLocationUpdate'])) ||
+                      (request.auth.token.email == 'kapatel1977@gmail.com' && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'displayName']))
+                    );
+    }
+
+    // 3. Logs
+    function isValidLog(data) {
+      return data.keys().hasAll(['volunteerId', 'volunteerName', 'type', 'timestamp', 'location', 'premiseId']) &&
+             data.volunteerId == request.auth.uid &&
+             data.type in ['entry', 'exit'] &&
+             data.timestamp == request.time &&
+             data.location is map && data.location.lat is number && data.location.lng is number &&
+             exists(/databases/$(database)/documents/premises/$(data.premiseId));
+    }
+
+    match /logs/{logId} {
+      allow get: if isSignedIn() && (resource.data.volunteerId == request.auth.uid || request.auth.token.email == 'kapatel1977@gmail.com');
+      allow list: if isAdmin() || (isSignedIn() && resource.data.volunteerId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(logId) && isValidLog(incoming());
+      allow update, delete: if false; // Logs are immutable
+    }
+  }
+}

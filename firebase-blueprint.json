@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "Premise": {
+      "title": "Premise",
+      "description": "A geofenced area where volunteers are tracked.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "center": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          },
+          "required": ["lat", "lng"]
+        },
+        "radius": { "type": "number", "description": "Radius in meters" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "center", "radius", "createdBy", "createdAt"]
+    },
+    "Volunteer": {
+      "title": "Volunteer",
+      "description": "Volunteer profile and current status.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["volunteer", "admin"] },
+        "isInside": { "type": "boolean" },
+        "lastCheckIn": { "type": "string", "format": "date-time" },
+        "lastCheckOut": { "type": "string", "format": "date-time" }
+      },
+      "required": ["displayName", "email", "role"]
+    },
+    "Log": {
+      "title": "Attendance Log",
+      "description": "A record of an entry or exit event.",
+      "type": "object",
+      "properties": {
+        "volunteerId": { "type": "string" },
+        "volunteerName": { "type": "string" },
+        "type": { "type": "string", "enum": ["entry", "exit"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          },
+          "required": ["lat", "lng"]
+        },
+        "premiseId": { "type": "string" }
+      },
+      "required": ["volunteerId", "type", "timestamp", "premiseId"]
+    }
+  },
+  "firestore": {
+    "/premises/{premiseId}": {
+      "schema": "Premise",
+      "description": "Defined geofences"
+    },
+    "/volunteers/{volunteerId}": {
+      "schema": "Volunteer",
+      "description": "User profiles"
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Entry and exit logs"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "GeoVolunteer Tracker",
+  "description": "An automated volunteer attendance system using geofencing to track entries and exits from premises, with real-time logging and spreadsheet exports.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
